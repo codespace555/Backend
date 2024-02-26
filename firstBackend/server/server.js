@@ -2,10 +2,10 @@ import express from "express";
 import 'dotenv/config'
 const app = express();
 
-app.get("/", (req, res) => {
+app.get("/api", (req, res) => {
 res.send("Hello Naman")
 })
-app.get("/jokes", (req, res) => {
+app.get("/api/jokes", (req, res) => {
   const jokes = [
     {
       id: 1,
@@ -34,7 +34,7 @@ app.get("/jokes", (req, res) => {
     },
   ];
   res.send(jokes);
-});
+}); 
 
 const PORT = process.env.PORT;
 
