@@ -197,33 +197,172 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       throw new ApiError(401, "Invalid refresh token");
     }
     if (incomingRefreshToken !== user?.refreshToken) {
-      throw new ApiError(401, "Refresh token is expired or used")
-      
-  }
-  const options = {
-    httpOnly: true,
-    secure: true
-}
+      throw new ApiError(401, "Refresh token is expired or used");
+    }
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
 
-const {accessToken,refreshToken} = generateAccessAndRefreshToken(user._id)
+    const { accessToken, refreshToken } = generateAccessAndRefreshToken(
+      user._id,
+    );
 
-return res
-.status(200)
-.cookie("accessToken", accessToken, options)
-.cookie("refreshToken", refreshToken, options)
-.json(
-    new ApiResponse(
-        200, 
-        {accessToken, refreshToken: refreshToken},
-        "Access token refreshed"
-    )
-)
-
-
-
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refreshToken: refreshToken },
+          "Access token refreshed",
+        ),
+      );
   } catch (error) {
     throw ApiError(403, error.message || "Server Error");
   }
 });
 
-export { registerUser, loginUser, logoutUser,refreshAccessToken };
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const user = await User.findById(req.user?._id);
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalid password");
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: true });
+
+  return res
+    .status(201)
+    .json(new ApiResponse(201, {}, "User Password Changed Successfully"));
+});
+
+const getCurrentuser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "User fetched successfully"));
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+  //checking if the email has been changed or not
+  if (!fullName || !email) {
+    throw new ApiError(400, "Please provide required field");
+  }
+
+  const user = User.findByIdAndUpdate(req.user?._id, {
+    $set: {
+      fullName,
+      email,
+    },
+  }).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Profile updated succesfully"));
+});
+
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  const avatarLocalPath = req.file?.path
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "No image provided")
+  }
+
+  const avatar = await uploadOncloudinary(avatarLocalPath)
+
+  if (!avatar.url) {
+    throw new ApiError(400, "No image path get")
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+  {
+      $set: {
+        avatar: avatar.url
+      },
+
+    },
+    { new: true }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user, "Avatar image updated successfully")
+    )
+
+
+})
+
+
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "No cover image provided")
+  }
+
+  const coverImage = await uploadOncloudinary(coverImageLocalPath)
+
+  if (!coverImage.url) {
+    throw new ApiError(400, "No coverImage image path get")
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+  {
+      $set: {
+        coverImage: coverImage.url
+      },
+
+    },
+    { new: true }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user, "Cover image updated successfully")
+    )
+
+
+})
+
+const deleteUser = asyncHandler(async (req,res) => {
+  try{
+  const email = req.body
+  let user = await User.findById(
+    req.user?._id
+  )
+  // Checking the owner of this account
+if(!(email === user.email)){
+  throw new ApiError(401,"You don't have permission to perform this action.")
+}
+
+
+    await User.deleteOne({_id : user?._id});
+    res.status(200).json(new ApiResponse(200,null,'Account deleted'));
+    
+  }catch(err){
+    console.log(err);
+    res.status(400).json(`Error: ${err}`);
+  }
+})
+
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentuser,
+  updateAccountDetails,
+  updateUserAvatar,
+  updateUserCoverImage,
+  deleteUser
+};
