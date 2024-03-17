@@ -13,7 +13,7 @@ const uploadOncloudinary = async (localFilepath) => {
     const resp = await cloudinary.uploader.upload(localFilepath, {
       resource_type: "auto",
     });
-    fs.unlinkSync(localFilepath)
+    fs.unlinkSync(localFilepath);
     console.log("Uploaded to Cloudinary", resp.url);
     return resp;
   } catch (error) {
@@ -22,4 +22,20 @@ const uploadOncloudinary = async (localFilepath) => {
   }
 };
 
-export { uploadOncloudinary };
+const fileDelete = async (publicId) => {
+  let result = await cloudinary.uploader.destroy(publicId, function (err, res) {
+    if (!err) {
+      console.log(
+        "Deleting File From Cloudinary :",
+        publicId,
+        "Result : ",
+        res,
+      );
+    } else {
+      console.log("Error in Deleting File From Cloudinary :", err);
+    }
+  });
+  return result;
+};
+
+export { uploadOncloudinary, fileDelete };
