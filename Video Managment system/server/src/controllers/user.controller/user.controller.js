@@ -202,7 +202,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
   if (!incomingRefreshToken) {
-    throw ApiError(401, "unauthorized request");
+    throw new ApiError(401, "unauthorized request");
   }
 
   try {
@@ -238,7 +238,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         ),
       );
   } catch (error) {
-    throw ApiError(403, error.message || "Server Error");
+    throw new ApiError(403, "server not Found refresh token");
   }
 });
 
@@ -374,7 +374,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   const { username } = req.params;
 
   if (!username?.trim()) {
-    throw new ApiError(400, "Username is required.", null);
+    throw new ApiError(400, "Username is required.");
   }
 
   const channel = await User.aggregate([
