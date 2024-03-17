@@ -4,6 +4,7 @@ import { User } from "../../models/user.model.js";
 import { uploadOncloudinary } from "../../utils/cloudinary.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -267,92 +268,160 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
-  const avatarLocalPath = req.file?.path
+  const avatarLocalPath = req.file?.path;
   if (!avatarLocalPath) {
-    throw new ApiError(400, "No image provided")
+    throw new ApiError(400, "No image provided");
   }
 
-  const avatar = await uploadOncloudinary(avatarLocalPath)
+  const avatar = await uploadOncloudinary(avatarLocalPath);
 
   if (!avatar.url) {
-    throw new ApiError(400, "No image path get")
+    throw new ApiError(400, "No image path get");
   }
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
-  {
+    {
       $set: {
-        avatar: avatar.url
+        avatar: avatar.url,
       },
-
     },
-    { new: true }
-    ).select("-password")
+    { new: true },
+  ).select("-password");
 
-    return res
+  return res
     .status(200)
-    .json(
-        new ApiResponse(200, user, "Avatar image updated successfully")
-    )
-
-
-})
-
-
+    .json(new ApiResponse(200, user, "Avatar image updated successfully"));
+});
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
-  const coverImageLocalPath = req.file?.path
+  const coverImageLocalPath = req.file?.path;
   if (!coverImageLocalPath) {
-    throw new ApiError(400, "No cover image provided")
+    throw new ApiError(400, "No cover image provided");
   }
 
-  const coverImage = await uploadOncloudinary(coverImageLocalPath)
+  const coverImage = await uploadOncloudinary(coverImageLocalPath);
 
   if (!coverImage.url) {
-    throw new ApiError(400, "No coverImage image path get")
+    throw new ApiError(400, "No coverImage image path get");
   }
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
-  {
+    {
       $set: {
-        coverImage: coverImage.url
+        coverImage: coverImage.url,
       },
-
     },
-    { new: true }
-    ).select("-password")
+    { new: true },
+  ).select("-password");
 
-    return res
+  return res
     .status(200)
-    .json(
-        new ApiResponse(200, user, "Cover image updated successfully")
-    )
+    .json(new ApiResponse(200, user, "Cover image updated successfully"));
+});
 
+const deleteUser = asyncHandler(async (req, res) => {
+  try {
+    const email = req.body;
+    let user = await User.findById(req.user?._id);
+    // Checking the owner of this account
+    if (!(email === user.email)) {
+      throw new ApiError(
+        401,
+        "You don't have permission to perform this action.",
+      );
+    }
 
-})
-
-const deleteUser = asyncHandler(async (req,res) => {
-  try{
-  const email = req.body
-  let user = await User.findById(
-    req.user?._id
-  )
-  // Checking the owner of this account
-if(!(email === user.email)){
-  throw new ApiError(401,"You don't have permission to perform this action.")
-}
-
-
-    await User.deleteOne({_id : user?._id});
-    res.status(200).json(new ApiResponse(200,null,'Account deleted'));
-    
-  }catch(err){
-    console.log(err);
-    res.status(400).json(`Error: ${err}`);
+    await User.deleteOne({ _id: user?._id });
+    res.status(200).json(new ApiResponse(200, null, "Account deleted"));
+  } catch (err) {
+    new ApiError(400, err.message || "Server Error", err);
   }
-})
+});
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is required.", null);
+  }
+
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "Subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "Subscriber",
+        as: "SubscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$Subscribers",
+        },
+        channelsSubscribersToCount: {
+          $size: "$SubscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$Subscribers.Subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribersToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  if(!channel?.length){
+    throw  new ApiError(404,'Channel not found');
+  }
+  console.log(channel)
+
+return res.status(200)
+.json(
+  new ApiResponse(200,channel[0],"User channel fetched successfully")
+) 
+});
+
+
+const getWatchHistory = asyncHandler(async (req,res)=>{
+   const user=  await User.aggregate([
+    {
+       $match:{
+        _id: new mongoose.Types.ObjectId(req.user._id)
+       }
+    }
+   ]) 
+
+})
 
 export {
   registerUser,
@@ -364,5 +433,7 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
-  deleteUser
+  deleteUser,
+  getUserChannelProfile,
+
 };
